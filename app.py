@@ -4,6 +4,7 @@ import sqlite3
 import time
 from datetime import datetime
 
+import pandas as pd
 import streamlit as st
 
 
@@ -117,6 +118,18 @@ def render_dashboard():
     st.write(f"**Máquina:** {last_diag['machine']}")
     st.write(f"**Problema relatado:** {last_diag['problem']}")
     st.write(f"**Diagnóstico (mock):** {last_diag['diagnosis']}")
+
+    st.subheader("Diagnósticos por máquina")
+    machine_counts = {}
+    for item in st.session_state.history:
+        machine = item["machine"]
+        machine_counts[machine] = machine_counts.get(machine, 0) + 1
+
+    if machine_counts:
+        chart_df = pd.DataFrame(
+            [{"machine": name, "count": count} for name, count in machine_counts.items()]
+        )
+        st.bar_chart(chart_df.set_index("machine")["count"])
 
 
 def render_new_diagnosis():
