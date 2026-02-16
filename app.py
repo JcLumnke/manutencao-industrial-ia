@@ -92,6 +92,12 @@ def seed_test_data():
             )
 
 
+def reset_test_data():
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM diagnoses")
+    seed_test_data()
+
+
 def load_history():
     with sqlite3.connect(DB_PATH) as conn:
         rows = conn.execute(
@@ -225,6 +231,15 @@ def render_dashboard():
         )
         pie_fig.update_layout(height=360, margin=dict(t=10, b=10))
         st.plotly_chart(pie_fig, use_container_width=True)
+
+    st.divider()
+    if st.button("Recriar dados de teste"):
+        reset_test_data()
+        st.session_state.history = load_history()
+        st.session_state.last_diagnosis = (
+            st.session_state.history[0] if st.session_state.history else None
+        )
+        st.success("Dados de teste recriados com sucesso.")
 
 
 def render_new_diagnosis():
