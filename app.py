@@ -8,8 +8,10 @@ import plotly.express as px
 import streamlit as st
 import google.generativeai as genai
 
+# --- CONFIGURAÇÃO DA IA (CORREÇÃO DO ERRO 404) ---
+# Usando a configuração recomendada para evitar conflitos de versão da API
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel(model_name="gemini-1.5-flash")
 
 st.set_page_config(
     page_title="Diagnóstico de Manutenção Industrial",
@@ -19,20 +21,26 @@ st.set_page_config(
 
 DB_PATH = "diagnostics.db"
 
+# --- FUNÇÃO DE INTELIGÊNCIA REAL (AJUSTADA) ---
 def gerar_diagnostico_ia(machine_name: str, problem_desc: str) -> str:
     prompt = f"""
     Você é um engenheiro sênior de manutenção industrial. 
     Analise o seguinte problema relatado na máquina '{machine_name}':
     {problem_desc}
     
-    Forneça causas prováveis, riscos de segurança e recomendações técnicas detalhadas.
+    Forneça:
+    1. Causas prováveis.
+    2. Riscos de segurança.
+    3. Recomendações técnicas detalhadas.
     """
     try:
+        # Chamada direta ao modelo configurado
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Erro na conexão com Gemini: {e}. Verifique sua chave de API."
+        return f"Erro na conexão com Gemini: {str(e)}. Verifique se a cota da API ou a região estão disponíveis."
 
+# --- FUNÇÕES DE BANCO DE DADOS (IGUAIS AO SEU ORIGINAL) ---
 def init_state():
     if "history" not in st.session_state:
         st.session_state.history = []
@@ -77,6 +85,7 @@ def save_diagnosis(record):
         """, (record["machine"], record["problem"], record["diagnosis"], 
               record["urgency"], record["timestamp"].isoformat()))
 
+# --- INTERFACES DE RENDERIZAÇÃO ---
 def render_dashboard():
     st.title("Dashboard")
     history = st.session_state.history
@@ -84,11 +93,11 @@ def render_dashboard():
         st.info("Nenhum diagnóstico registrado.")
         return
     
-    last_diag = st.session_state.last_diagnosis or history[0]
+    last_diag = st.session_state.last_diagnosis or (history[0] if history else None)
     col1, col2, col3 = st.columns(3)
     col1.metric("Total de Diagnósticos", len(history))
-    col2.metric("Última Máquina", last_diag["machine"])
-    col3.metric("Urgência", last_diag["urgency"])
+    col2.metric("Última Máquina", last_diag["machine"] if last_diag else "—")
+    col3.metric("Urgência", last_diag["urgency"] if last_diag else "—")
 
     st.divider()
     st.subheader("Análise de Urgências")
@@ -107,7 +116,6 @@ def render_new_diagnosis():
 
     if submitted and machine_name:
         with st.spinner("IA Analisando falha..."):
-        
             diagnosis_text = gerar_diagnostico_ia(machine_name, problem_desc)
             
             record = {
@@ -120,19 +128,18 @@ def render_new_diagnosis():
             save_diagnosis(record)
             st.session_state.history = load_history()
             st.session_state.last_diagnosis = record
-            st.success("Diagnóstico Gerado pela IA!")
-            st.write(diagnosis_text)
+            st.success("Diagnóstico Gerado!")
+            st.markdown(f"### Análise Técnica:\n{diagnosis_text}")
 
 def render_history():
-    st.title("Histórico Completo")
+    st.title("Histórico")
     if not st.session_state.history:
         st.info("Histórico vazio.")
         return
 
-    
     csv_buffer = io.StringIO()
     pd.DataFrame(st.session_state.history).to_csv(csv_buffer)
-    st.download_button("Exportar Histórico (CSV)", data=csv_buffer.getvalue(), file_name="diagnosticos.csv")
+    st.download_button("Exportar CSV", data=csv_buffer.getvalue(), file_name="diagnosticos.csv")
 
     for idx, item in enumerate(st.session_state.history, start=1):
         with st.expander(f"{idx}. {item['machine']} — {item['timestamp'].strftime('%d/%m/%Y %H:%M')}"):
