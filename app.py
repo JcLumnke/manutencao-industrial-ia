@@ -67,55 +67,56 @@ def save_diagnosis(record):
         )
 
 def gerar_diagnostico_ia(machine, problem):
-    prompt = f"Aja como engenheiro de manutenção. Analise a máquina {machine}. Problema: {problem}."
+    prompt = f"Aja como engenheiro de manutenção industrial. Analise a máquina {machine}. Problema: {problem}."
     try:
         response = model.generate_content(prompt)
         return response.text
     except:
-        return "Erro na consulta ao modelo IA. Verifique a chave de API."
+        return "Erro de conexão com o servidor de IA. Verifique as configurações."
 
 def render_dashboard():
     st.title("Dashboard")
     history = st.session_state.get("history", [])
     if not history:
-        st.info("Sem registros no banco de dados.")
+        st.info("Aguardando dados para exibição.")
         return
 
     df = pd.DataFrame(history)
-    df["machine"] = df["machine"].str.strip().str.title()
+    df["machine"] = df["machine"].str.strip().str.upper()
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("Diagnósticos", len(df))
-    c2.metric("Última Máquina", df.iloc[0]["machine"])
-    c3.metric("Urgência", df.iloc[0]["urgency"])
+    c1.metric("Total Diagnósticos", len(df))
+    c2.metric("Máquina Recente", df.iloc[0]["machine"])
+    c3.metric("Status Recente", df.iloc[0]["urgency"])
 
     st.divider()
     col_bar, col_pie = st.columns(2)
 
     with col_bar:
         m_counts = df["machine"].value_counts().reset_index()
-        m_counts.columns = ["Máquina", "Total"]
-        fig = px.bar(m_counts, x="Máquina", y="Total", color="Máquina",
-                     color_discrete_sequence=px.colors.qualitative.Bold)
+        m_counts.columns = ["Máquina", "Quantidade"]
+        fig = px.bar(m_counts, x="Máquina", y="Quantidade", color="Máquina",
+                     title="Volume por Equipamento")
         st.plotly_chart(fig, use_container_width=True)
 
     with col_pie:
         fig = px.pie(df, names="urgency", color="urgency",
-                     color_discrete_map={"Alta": "#e74c3c", "Média": "#f1c40f", "Baixa": "#2ecc71"})
+                     color_discrete_map={"Alta": "#e74c3c", "Média": "#f1c40f", "Baixa": "#2ecc71"},
+                     title="Distribuição de Urgência")
         st.plotly_chart(fig, use_container_width=True)
 
 def render_new_diagnosis():
     st.title("Novo Diagnóstico")
     with st.form("main_form"):
-        m = st.text_input("Máquina")
-        p = st.text_area("Descrição do Problema")
-        u = st.selectbox("Nível de Urgência", ["Baixa", "Média", "Alta"])
-        if st.form_submit_button("Processar com IA"):
+        m = st.text_input("Nome da Máquina")
+        p = st.text_area("Problema")
+        u = st.selectbox("Urgência", ["Baixa", "Média", "Alta"])
+        if st.form_submit_button("Analisar com Gemini IA"):
             if m and p:
-                with st.spinner("Analisando falha..."):
+                with st.spinner("Processando..."):
                     diag = gerar_diagnostico_ia(m, p)
                     rec = {
-                        "machine": m.strip().title(),
+                        "machine": m.strip().upper(),
                         "problem": p.strip(),
                         "diagnosis": diag,
                         "urgency": u,
@@ -123,19 +124,19 @@ def render_new_diagnosis():
                     }
                     save_diagnosis(rec)
                     st.session_state.history = load_history()
-                    st.success("Diagnóstico concluído.")
+                    st.success("Análise Finalizada.")
                     st.write(diag)
 
 def render_history():
     st.title("Histórico")
     history = st.session_state.get("history", [])
     if not history:
-        st.info("Histórico vazio.")
+        st.info("Histórico disponível após o primeiro registro.")
         return
 
     csv_buf = io.StringIO()
     pd.DataFrame(history).to_csv(csv_buf)
-    st.download_button("Exportar CSV", csv_buf.getvalue(), "diagnosticos.csv")
+    st.download_button("Baixar Dados (CSV)", csv_buf.getvalue(), "diagnosticos.csv")
 
     for item in history:
         with st.expander(f"{item['machine']} - {item['timestamp'].strftime('%d/%m/%Y %H:%M')}"):
