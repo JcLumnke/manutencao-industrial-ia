@@ -10,7 +10,6 @@ import streamlit as st
 import google.generativeai as genai
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash')
 
 st.set_page_config(
     page_title="Diagnóstico de Manutenção Industrial",
@@ -46,16 +45,17 @@ def save_diagnosis(record):
 def gerar_diagnostico_ia(machine, problem):
     prompt = f"Aja como engenheiro de manutenção industrial. Analise a máquina {machine}. Problema: {problem}."
     try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Erro: {str(e)}"
+        return f"Erro Técnico: {str(e)}"
 
 def render_dashboard():
     st.title("Dashboard")
     history = load_history()
     if not history:
-        st.info("Aguardando dados...")
+        st.warning("O banco de dados está vazio. Realize um 'Novo Diagnóstico' para gerar os gráficos.")
         return
     
     df = pd.DataFrame(history)
@@ -72,7 +72,7 @@ def render_dashboard():
         st.plotly_chart(px.pie(df, names='urgency', color='urgency', 
                                color_discrete_map={"Alta": "#e74c3c", "Média": "#f1c40f", "Baixa": "#2ecc71"}), use_container_width=True)
 
-    if st.button("Limpar Banco de Dados"):
+    if st.button("Limpar Histórico"):
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("DELETE FROM diagnoses")
         st.rerun()
@@ -81,11 +81,11 @@ def render_new_diagnosis():
     st.title("Novo Diagnóstico")
     with st.form("main_form"):
         m = st.text_input("Máquina")
-        p = st.text_area("Problema")
+        p = st.text_area("Descrição do Problema")
         u = st.selectbox("Urgência", ["Baixa", "Média", "Alta"])
-        if st.form_submit_button("Analisar com Gemini"):
+        if st.form_submit_button("Gerar Análise Técnica"):
             if m and p:
-                with st.spinner("IA Analisando..."):
+                with st.spinner("IA Processando..."):
                     diag = gerar_diagnostico_ia(m, p)
                     save_diagnosis({"machine": m.strip().upper(), "problem": p, "diagnosis": diag, "urgency": u, "timestamp": datetime.now()})
                     st.success("Diagnóstico concluído.")
