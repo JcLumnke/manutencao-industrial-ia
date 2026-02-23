@@ -2,43 +2,24 @@ import csv
 import io
 import sqlite3
 import time
+import os
 from datetime import datetime
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 import google.generativeai as genai
 
+os.environ["GOOGLE_API_USE_MTLS"] = "never" 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 st.set_page_config(
-    page_title="Diagnóstico de Manutenção Industrial",
+    page_title="Diagnóstico Industrial - Julio",
     page_icon="🛠️",
     layout="wide",
 )
 
 DB_PATH = "diagnostics.db"
-
-def gerar_diagnostico_ia(machine_name: str, problem_desc: str) -> str:
-    prompt = f"""
-    Você é um engenheiro sênior de manutenção industrial. 
-    Analise o seguinte problema relatado na máquina '{machine_name}':
-    {problem_desc}
-    
-    Forneça causas prováveis, riscos de segurança e recomendações técnicas detalhadas.
-    """
-    try:
-
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-    
-        try:
-            backup_model = genai.GenerativeModel('gemini-pro')
-            response = backup_model.generate_content(prompt)
-            return response.text
-        except Exception as e2:
-            return f"Erro Crítico de Conexão: {str(e2)}. Verifique sua cota no Google AI Studio."
 
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
@@ -66,6 +47,50 @@ def load_history():
         rows = conn.execute("SELECT machine, problem, diagnosis, urgency, created_at FROM diagnoses ORDER BY id DESC").fetchall()
     return [{"machine": r[0], "problem": r[1], "diagnosis": r[2], "urgency": r[3], "timestamp": datetime.fromisoformat(r[4])} for r in rows]
 
+def gerar_diagnostico_ia(machine, problem):
+    prompt = f"Aja como engenheiro de manutenção industrial. Analise a máquina {machine}. Problema: {problem}."
+    try:
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"Erro técnico na IA: {str(e)}. Verifique a cota no AI Studio."
+
+def render_dashboard():
+    st.title("📊 Dashboard Industrial")
+    history = st.session_state.history
+    
+    if not history:
+        st.info("Aguardando registros para gerar os gráficos...")
+        return
+
+    df = pd.DataFrame(history)
+    
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total de Diagnósticos", len(df))
+    c2.metric("Última Máquina", df.iloc[0]['machine'])
+    c3.metric("Urgência Recente", df.iloc[0]['urgency'])
+
+    st.divider()
+    
+    col_bar, col_pie = st.columns(2)
+
+
+    with col_bar:
+        st.subheader("Diagnósticos por Máquina")
+
+        machine_counts = df['machine'].value_counts().reset_index()
+        machine_counts.columns = ['Máquina', 'Quantidade']
+        fig_bar = px.bar(machine_counts, x='Máquina', y='Quantidade', color='Máquina',
+                         color_discrete_sequence=px.colors.qualitative.Vivid)
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+    with col_pie:
+        st.subheader("Distribuição de Urgência")
+        fig_pie = px.pie(df, names='urgency', color='urgency',
+                         color_discrete_map={"Alta": "#e74c3c", "Média": "#f1c40f", "Baixa": "#2ecc71"})
+        st.plotly_chart(fig_pie, use_container_width=True)
+
 def main():
     if "db_initialized" not in st.session_state:
         init_db()
@@ -75,34 +100,25 @@ def main():
     
     tabs = st.tabs(["Dashboard", "Novo Diagnóstico", "Histórico"])
     
-    with tabs[0]:
-        st.title("Dashboard")
-        if st.session_state.history:
-            df = pd.DataFrame(st.session_state.history)
-            fig = px.pie(df, names='urgency', color='urgency', 
-                         color_discrete_map={"Alta": "#e74c3c", "Média": "#f1c40f", "Baixa": "#2ecc71"})
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Nenhum diagnóstico registrado.")
-
+    with tabs[0]: render_dashboard()
+    
     with tabs[1]:
-        st.title("Novo Diagnóstico (Gemini IA)")
-        with st.form("diag_form"):
-            machine = st.text_input("Máquina")
-            problem = st.text_area("Descrição do Problema")
-            urgency = st.selectbox("Urgência", ["Baixa", "Média", "Alta"])
-            if st.form_submit_button("Gerar Análise Técnica"):
-                if machine and problem:
+        st.title("🛠️ Novo Diagnóstico IA")
+        with st.form("form_ia"):
+            m = st.text_input("Nome da Máquina")
+            p = st.text_area("Descrição do Problema")
+            u = st.selectbox("Urgência", ["Baixa", "Média", "Alta"])
+            if st.form_submit_button("Consultar Gemini"):
+                if m and p:
                     with st.spinner("IA Analisando..."):
-                        resultado = gerar_diagnostico_ia(machine, problem)
-                        rec = {"machine": machine, "problem": problem, "diagnosis": resultado, "urgency": urgency, "timestamp": datetime.now()}
-                        save_diagnosis(rec)
+                        res = gerar_diagnostico_ia(m, p)
+                        save_diagnosis({"machine": m, "problem": p, "diagnosis": res, "urgency": u, "timestamp": datetime.now()})
                         st.session_state.history = load_history()
-                        st.success("Diagnóstico concluído!")
-                        st.write(resultado)
+                        st.success("Análise Concluída!")
+                        st.write(res)
 
     with tabs[2]:
-        st.title("Histórico de Manutenção")
+        st.title("📜 Histórico SQLite")
         for item in st.session_state.history:
             with st.expander(f"{item['machine']} - {item['timestamp'].strftime('%d/%m/%Y %H:%M')}"):
                 st.write(f"**Problema:** {item['problem']}")
