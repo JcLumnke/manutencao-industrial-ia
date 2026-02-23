@@ -45,17 +45,17 @@ def save_diagnosis(record):
 def gerar_diagnostico_ia(machine, problem):
     prompt = f"Aja como engenheiro de manutenção industrial. Analise a máquina {machine}. Problema: {problem}."
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Erro Técnico: {str(e)}"
+        return f"Erro de Conexão: {str(e)}"
 
 def render_dashboard():
     st.title("Dashboard")
     history = load_history()
     if not history:
-        st.warning("O banco de dados está vazio. Realize um 'Novo Diagnóstico' para gerar os gráficos.")
+        st.warning("Banco de dados vazio. Realize um novo diagnóstico.")
         return
     
     df = pd.DataFrame(history)
@@ -65,12 +65,14 @@ def render_dashboard():
         st.subheader("Volume por Equipamento")
         m_counts = df['machine'].value_counts().reset_index()
         m_counts.columns = ['Máquina', 'Total']
-        st.plotly_chart(px.bar(m_counts, x='Máquina', y='Total', color='Máquina'), use_container_width=True)
+        fig = px.bar(m_counts, x='Máquina', y='Total', color='Máquina')
+        st.plotly_chart(fig, use_container_width=True)
         
     with col2:
         st.subheader("Distribuição de Urgência")
-        st.plotly_chart(px.pie(df, names='urgency', color='urgency', 
-                               color_discrete_map={"Alta": "#e74c3c", "Média": "#f1c40f", "Baixa": "#2ecc71"}), use_container_width=True)
+        fig_pie = px.pie(df, names='urgency', color='urgency', 
+                         color_discrete_map={"Alta": "#e74c3c", "Média": "#f1c40f", "Baixa": "#2ecc71"})
+        st.plotly_chart(fig_pie, use_container_width=True)
 
     if st.button("Limpar Histórico"):
         with sqlite3.connect(DB_PATH) as conn:
@@ -88,7 +90,7 @@ def render_new_diagnosis():
                 with st.spinner("IA Processando..."):
                     diag = gerar_diagnostico_ia(m, p)
                     save_diagnosis({"machine": m.strip().upper(), "problem": p, "diagnosis": diag, "urgency": u, "timestamp": datetime.now()})
-                    st.success("Diagnóstico concluído.")
+                    st.success("Concluído.")
                     st.write(diag)
 
 def render_history():
