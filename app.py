@@ -9,7 +9,8 @@ import plotly.express as px
 import streamlit as st
 import google.generativeai as genai
 
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+os.environ["GOOGLE_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
 st.set_page_config(
     page_title="Diagnóstico de Manutenção Industrial",
@@ -45,7 +46,7 @@ def save_diagnosis(record):
 def gerar_diagnostico_ia(machine, problem):
     prompt = f"Aja como engenheiro de manutenção industrial. Analise a máquina {machine}. Problema: {problem}."
     try:
-        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -55,7 +56,7 @@ def render_dashboard():
     st.title("Dashboard")
     history = load_history()
     if not history:
-        st.warning("Banco de dados vazio. Realize um novo diagnóstico.")
+        st.warning("Banco de dados vazio.")
         return
     
     df = pd.DataFrame(history)
@@ -85,7 +86,7 @@ def render_new_diagnosis():
         m = st.text_input("Máquina")
         p = st.text_area("Descrição do Problema")
         u = st.selectbox("Urgência", ["Baixa", "Média", "Alta"])
-        if st.form_submit_button("Gerar Análise Técnica"):
+        if st.form_submit_button("Gerar Análise"):
             if m and p:
                 with st.spinner("IA Processando..."):
                     diag = gerar_diagnostico_ia(m, p)
