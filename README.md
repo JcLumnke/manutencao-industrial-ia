@@ -35,6 +35,12 @@ Aplicação Streamlit para diagnóstico de manutenção industrial com três aba
 - Priorizou simplicidade e clareza: fluxo de navegação evidente e mensagens objetivas.
 - Optou por dependências mínimas e código legível para facilitar evolução futura.
 
+## O que funcionou (Resultados Alcançados)
+- Interface funcional: A estrutura de abas do Streamlit permitiu uma navegação fluida e intuitiva para o usuário final.
+- Persistência de dados: A escolha do SQLite funcionou conforme o esperado, garantindo que os dados não fossem perdidos após o encerramento do script.
+- Visualização de KPIs: O dashboard conseguiu resumir o estado da manutenção de forma clara e visualmente organizada.
+- Fluxo de entrada: O formulário capturou com sucesso as variáveis necessárias para o diagnóstico, validando a estrutura de dados inicial do projeto.
+
 ## Desafios de Desenvolvimento e Lições Aprendidas
 - No início, houve dificuldade em ajustar os prompts para que o agente entendesse a hierarquia de pastas do projeto.
 - A configuração inicial de rede e segurança do Git exigiu intervenções manuais para autorizar o acesso do agente ao repositório.
